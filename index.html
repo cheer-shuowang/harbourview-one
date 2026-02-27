@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HarbourView One — AEI Interactive Visualiser</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,700&family=Space+Mono:wght@400;700&family=Playfair+Display:wght@600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0c1220; overflow-x: hidden; }
+  @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 8px rgba(99,179,237,0.2); } 50% { box-shadow: 0 0 20px rgba(99,179,237,0.5); } }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #4A556844; border-radius: 4px; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ═══════════════ DATA ═══════════════ */
+const FLOORS = [
+  {
+    id:"B1",label:"B1",name:"Basement Car Park",color:"#4A5568",
+    preAEI:{title:"Before AEI",desc:"Single-level car park with basic wayfinding, no EV provision, poor lighting and dated signage.",
+      features:["~70 Parking Lots","M&E Plant Rooms","Electrical Switchrooms","Basic Wayfinding"],
+      zones:[
+        {x:5,y:10,w:40,h:35,label:"Parking Area",color:"#718096",icon:"🅿️"},
+        {x:50,y:10,w:25,h:35,label:"M&E Plant",color:"#E53E3E",icon:"⚙️"},
+        {x:80,y:10,w:15,h:35,label:"Electrical\nSwitchroom",color:"#DD6B20",icon:"⚡"},
+        {x:5,y:55,w:90,h:10,label:"Vehicle Driveway",color:"#A0AEC0",icon:"🚗"},
+      ]},
+    postAEI:{title:"After AEI",desc:"Enhanced LED lighting, clear digital signage, dedicated EV charging bays, refreshed finishes for improved safety and user experience.",
+      features:["EV Charging Bays","LED Lighting","Digital Wayfinding","Refreshed Finishes","Optimised Circulation"],
+      zones:[
+        {x:5,y:10,w:30,h:35,label:"Standard\nParking",color:"#718096",icon:"🅿️"},
+        {x:38,y:10,w:15,h:35,label:"EV Charging\nBays",color:"#38A169",icon:"🔋"},
+        {x:56,y:10,w:20,h:35,label:"M&E Plant",color:"#E53E3E",icon:"⚙️"},
+        {x:80,y:10,w:15,h:35,label:"Electrical\nSwitchroom",color:"#DD6B20",icon:"⚡"},
+        {x:5,y:55,w:90,h:10,label:"Vehicle Driveway (LED-lit)",color:"#4FD1C5",icon:"🚗"},
+      ]},
+  },
+  {
+    id:"GF",label:"GF",name:"Lobby & Amenity Hub",color:"#2B6CB0",
+    preAEI:{title:"Before AEI",desc:"A collection of disconnected, under-performing spaces — a dated café, an outdated function room turned storage, and a cramped manual reception creating a confusing arrival experience.",
+      features:["Dated Café","Defunct Function Room / Storage","Manual Reception Desk","Security Turnstiles","Lift Lobby"],
+      zones:[
+        {x:5,y:8,w:30,h:30,label:"Dated Café",color:"#C4B5A0",icon:"☕"},
+        {x:60,y:8,w:35,h:30,label:"Outdated Function\nRoom / Storage",color:"#A0AEC0",icon:"📦"},
+        {x:30,y:18,w:20,h:14,label:"Manual\nReception",color:"#CBD5E0",icon:"🧑‍💼"},
+        {x:20,y:45,w:25,h:10,label:"Secure Turnstiles",color:"#FC8181",icon:"🚧"},
+        {x:35,y:60,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+        {x:5,y:60,w:20,h:20,label:"Restrooms",color:"#B2F5EA",icon:"🚻"},
+        {x:70,y:60,w:25,h:20,label:"Back of House",color:"#FED7D7",icon:"🔧"},
+      ]},
+    postAEI:{title:"After AEI",desc:"A cohesive, welcoming gateway with AI-powered concierge, digital wayfinding, tenant lounge / café, bookable meeting rooms, and biophilic design elements.",
+      features:["AI Concierge","Digital Visitor Mgmt","Smart Parcel Lockers","Tenant Lounge / Café","Bookable Meeting Rooms","Biophilic Elements"],
+      zones:[
+        {x:5,y:8,w:35,h:30,label:"Tenant Lounge\n/ Café",color:"#68D391",icon:"☕"},
+        {x:55,y:8,w:20,h:15,label:"Meeting Rm\n(6-8 pax)",color:"#63B3ED",icon:"👥"},
+        {x:78,y:8,w:17,h:15,label:"Meeting Rm\n(4-6 pax)",color:"#63B3ED",icon:"👥"},
+        {x:28,y:28,w:30,h:12,label:"Digital Reception\n& Parcel Lockers",color:"#B794F4",icon:"📱"},
+        {x:20,y:45,w:25,h:10,label:"Secure Turnstiles",color:"#FC8181",icon:"🔐"},
+        {x:35,y:60,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+        {x:70,y:60,w:25,h:20,label:"Back of House",color:"#FED7D7",icon:"🔧"},
+      ]},
+  },
+  {
+    id:"L2",label:"L2-4",name:"Typical Office Floor",color:"#2F855A",
+    preAEI:{title:"Before AEI",desc:"Deep floor plates with rigid partitions, poor daylight penetration, fixed cubicles, inefficient floor-by-floor cooling via AHUs, and outdated finishes.",
+      features:["Fixed Partitioned Offices","Fixed Cubicles","Central Common Area","Tenant A / B Split","M&E Room"],
+      zones:[
+        {x:5,y:8,w:25,h:35,label:"Fixed Offices\n& Partitions\n(Tenant A)",color:"#C4B5A0",icon:"🏢"},
+        {x:33,y:8,w:30,h:20,label:"Fixed Cubicles",color:"#CBD5E0",icon:"💺"},
+        {x:70,y:8,w:25,h:35,label:"Fixed Offices\n& Partitions\n(Tenant B)",color:"#C4B5A0",icon:"🏢"},
+        {x:33,y:32,w:30,h:12,label:"Central Area",color:"#E2E8F0",icon:"📋"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+        {x:60,y:55,w:12,h:12,label:"Fire\nStore",color:"#FEB2B2",icon:"🧯"},
+        {x:75,y:55,w:15,h:20,label:"M&E\nRoom",color:"#E53E3E",icon:"⚙️"},
+      ]},
+    postAEI:{title:"After AEI",desc:"Activity-Based Working (ABW) zones: focus areas, collaboration hubs, hot-desking, phone booths, meeting rooms, smart lighting and VAV zonal climate control.",
+      features:["Focus Zone & Phone Booths","Collaboration Hub & Lounge","Hot-Desking Zone","Meeting Room (8-10 pax)","Smart LED Lighting","VAV Zone Control"],
+      zones:[
+        {x:5,y:8,w:20,h:22,label:"Focus\nZone",color:"#9AE6B4",icon:"🤫"},
+        {x:5,y:8,w:8,h:8,label:"Phone\nBooth",color:"#68D391",icon:"📞"},
+        {x:28,y:8,w:30,h:22,label:"Collaboration Hub\n& Lounge",color:"#FEFCBF",icon:"💬"},
+        {x:62,y:8,w:12,h:10,label:"Pantry",color:"#FBD38D",icon:"🍵"},
+        {x:62,y:20,w:20,h:12,label:"Meeting Rm\n(8-10 pax)",color:"#BEE3F8",icon:"👥"},
+        {x:85,y:8,w:10,h:25,label:"Collab\nLounge",color:"#FEFCBF",icon:"💬"},
+        {x:5,y:35,w:90,h:14,label:"Hot-Desking Zone",color:"#C6F6D5",icon:"💻"},
+        {x:5,y:55,w:15,h:20,label:"Restrooms",color:"#B2F5EA",icon:"🚻"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+        {x:65,y:55,w:15,h:20,label:"Support\nServices",color:"#E9D8FD",icon:"🔧"},
+        {x:82,y:55,w:13,h:20,label:"Server\nRoom",color:"#FED7D7",icon:"🖥️"},
+      ]},
+  },
+  {
+    id:"L5",label:"L5",name:"Function & Event Floor",color:"#D69E2E",
+    preAEI:{title:"Before AEI",desc:"Standard office floor with no function or event capability — entirely configured as typical leased office space.",
+      features:["Standard Office Layout","Fixed Partitions","No Event Facilities","Same as Other Floors"],
+      zones:[
+        {x:5,y:8,w:90,h:35,label:"Standard Office Space\n(Same as other floors)",color:"#C4B5A0",icon:"🏢"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+      ]},
+    postAEI:{title:"After AEI",desc:"Dedicated multi-purpose event floor: 150–200 pax theatre-style / 120 pax banquet, professional AV, catering kitchen, breakout rooms.",
+      features:["Large Function Hall","Retractable Partition","Professional AV System","Catering Kitchen","Breakout Rooms","Event Reception Desk"],
+      zones:[
+        {x:5,y:5,w:30,h:35,label:"Function Room 1\n(Retractable Wall)",color:"#FEFCBF",icon:"🎤"},
+        {x:55,y:5,w:40,h:35,label:"Large Function\nHall (150-200 pax)",color:"#FAF089",icon:"🎪"},
+        {x:35,y:10,w:20,h:25,label:"Pre-Function\n/ Networking",color:"#C6F6D5",icon:"🤝"},
+        {x:35,y:37,w:20,h:8,label:"Event Reception",color:"#B794F4",icon:"📋"},
+        {x:5,y:50,w:20,h:25,label:"Tenant Area",color:"#BEE3F8",icon:"🏢"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+        {x:60,y:55,w:15,h:20,label:"Storage",color:"#E2E8F0",icon:"📦"},
+        {x:78,y:55,w:17,h:20,label:"Restrooms",color:"#B2F5EA",icon:"🚻"},
+      ]},
+  },
+  {
+    id:"L6",label:"L6-9",name:"Typical Office Floor",color:"#319795",
+    preAEI:{title:"Before AEI",desc:"Same rigid layout as other pre-AEI office floors — fixed partitions, dated finishes, poor daylight.",
+      features:["Fixed Partitioned Offices","Fixed Cubicles","Outdated Finishes"],
+      zones:[
+        {x:5,y:8,w:90,h:35,label:"Standard Office Space\n(Same as L2-4)",color:"#C4B5A0",icon:"🏢"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+      ]},
+    postAEI:{title:"After AEI",desc:"Flexible ABW workspace identical to L2-4 — hot-desking, collaboration zones, focus areas, smart M&E systems.",
+      features:["ABW Layout","Hot-Desking","Collaboration Hubs","Smart LED & VAV","Demountable Partitions","Raised Access Floors"],
+      zones:[
+        {x:5,y:8,w:20,h:22,label:"Focus\nZone",color:"#9AE6B4",icon:"🤫"},
+        {x:28,y:8,w:30,h:22,label:"Collaboration Hub\n& Lounge",color:"#FEFCBF",icon:"💬"},
+        {x:62,y:8,w:33,h:22,label:"Meeting Rooms\n& Phone Booths",color:"#BEE3F8",icon:"👥"},
+        {x:5,y:35,w:90,h:14,label:"Hot-Desking Zone",color:"#C6F6D5",icon:"💻"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+        {x:65,y:55,w:30,h:20,label:"Support + Pantry",color:"#E9D8FD",icon:"🔧"},
+      ]},
+  },
+  {
+    id:"L10",label:"L10",name:"Office + Rooftop",color:"#805AD5",
+    preAEI:{title:"Before AEI",desc:"Standard office floor with no rooftop utilisation and no green features.",
+      features:["Standard Office Layout","Unused Rooftop","No Solar Installation"],
+      zones:[
+        {x:5,y:8,w:90,h:35,label:"Standard Office Space",color:"#C4B5A0",icon:"🏢"},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+      ]},
+    postAEI:{title:"After AEI",desc:"Modern flexible office with rooftop solar panels and optional green terrace accessible to tenants.",
+      features:["Flexible ABW Workspace","Rooftop Solar Panels","Green Terrace (optional)","Tenant Amenity"],
+      zones:[
+        {x:5,y:8,w:55,h:20,label:"Flexible Workspace (ABW)",color:"#C6F6D5",icon:"💻"},
+        {x:65,y:8,w:30,h:20,label:"Collaboration &\nMeeting Rooms",color:"#FEFCBF",icon:"💬"},
+        {x:5,y:32,w:45,h:12,label:"☀️ Rooftop Solar Panel Array",color:"#F6E05E",icon:""},
+        {x:55,y:32,w:40,h:12,label:"🌿 Green Terrace (Tenants)",color:"#68D391",icon:""},
+        {x:25,y:55,w:12,h:20,label:"Fire\nStairs",color:"#FC8181",icon:"🚪"},
+        {x:40,y:55,w:15,h:20,label:"Lifts",color:"#E2E8F0",icon:"🛗"},
+      ]},
+  },
+];
+
+const RENDERS = [
+  {id:"facade",title:"Building Façade — Post AEI",subtitle:"Upgraded glazing, shading devices & modern aesthetics",
+    gradient:"linear-gradient(170deg, #87CEEB 0%, #B0D4F1 30%, #d4e8f7 50%, #E8EEF2 60%, #c2cdd6 70%, #8FA5B5 100%)",isDark:false,
+    elements:[
+      {text:"Upgraded Low-E\nDouble Glazing",x:"25%",y:"25%",color:"#2B6CB0"},
+      {text:"Horizontal\nShading Fins",x:"62%",y:"18%",color:"#4A5568"},
+      {text:"Refreshed\nFaçade Panels",x:"25%",y:"55%",color:"#718096"},
+      {text:"Illuminated\nSignage",x:"62%",y:"48%",color:"#D69E2E"},
+      {text:"Green Mark\nGold⁺ Target",x:"44%",y:"8%",color:"#38A169"},
+      {text:"Solar Panels\n(Rooftop)",x:"62%",y:"8%",color:"#DD6B20"},
+    ],
+    desc:"The façade retrofit introduces upgraded low-emissivity double glazing with integrated horizontal shading devices to reduce solar heat gain. External finishes are refreshed with contemporary cladding panels, and the ground-level canopy is redesigned for a modern arrival experience.",
+    specs:["Low-E Double Glazing (U ≤ 2.2 W/m²K)","Aluminium Shading Fins","Insulated Spandrel Panels","Rooftop PV (~50 kWp)","LED Façade Lighting"],
+  },
+  {id:"lobby",title:"Ground Floor Lobby — Post AEI",subtitle:"Biophilic design, digital reception & tenant lounge",
+    gradient:"linear-gradient(180deg, #fafdf7 0%, #f0f7ec 20%, #e8f0e0 40%, #f5f0e8 70%, #ede5d8 100%)",isDark:false,
+    elements:[
+      {text:"Living Green\nWall",x:"12%",y:"15%",color:"#38A169"},
+      {text:"Digital Check-In\nKiosk & QR",x:"50%",y:"28%",color:"#805AD5"},
+      {text:"Tenant Lounge\n& Café Bar",x:"12%",y:"55%",color:"#2B6CB0"},
+      {text:"Glass-Fronted\nMeeting Rooms",x:"70%",y:"15%",color:"#2B6CB0"},
+      {text:"Smart Parcel\nLockers",x:"50%",y:"55%",color:"#D69E2E"},
+      {text:"Card-Access\nTurnstiles",x:"70%",y:"55%",color:"#E53E3E"},
+    ],
+    desc:"The lobby is transformed into a bright, cohesive gateway. A living green wall anchors the biophilic design, complemented by natural timber finishes, terrazzo flooring, and soft ambient lighting. Digital visitor management replaces the manual desk.",
+    specs:["Living Green Wall (auto-irrigation)","Terrazzo & Timber Flooring","AI Digital Concierge","65\" 4K Smart Displays","Wireless Charging","High-Speed Wi-Fi"],
+  },
+  {id:"office",title:"Typical Office Floor — Post AEI",subtitle:"Activity-Based Working with flexible, modern layouts",
+    gradient:"linear-gradient(180deg, #f8fafb 0%, #eef4f8 20%, #e4edf4 40%, #f5f2ec 70%, #ece6dc 100%)",isDark:false,
+    elements:[
+      {text:"Focus Zone &\nPhone Booths",x:"10%",y:"18%",color:"#2F855A"},
+      {text:"Collaboration Hub\nWritable Walls",x:"42%",y:"15%",color:"#D69E2E"},
+      {text:"Hot-Desking\nZone",x:"42%",y:"55%",color:"#2B6CB0"},
+      {text:"Tunable LED\nLighting",x:"75%",y:"12%",color:"#805AD5"},
+      {text:"VAV Climate\nControl",x:"10%",y:"55%",color:"#E53E3E"},
+      {text:"Raised Access\nFloor",x:"75%",y:"55%",color:"#718096"},
+    ],
+    desc:"Each floor is reimagined around Activity-Based Working principles. Focus zones with acoustic phone booths sit alongside open collaboration hubs. The central hot-desking zone offers flexibility for hybrid teams.",
+    specs:["Tunable White LED (3000-5000K)","VAV System + Zone Control","Raised Access Floor (150mm)","Demountable Glass Partitions","Floor Boxes @ 1 per 4 sqm","Acoustic Phone Booths"],
+  },
+  {id:"event",title:"Level 5 — Function & Event Hall",subtitle:"Multi-purpose hall with professional AV infrastructure",
+    gradient:"linear-gradient(180deg, #1a1a2e 0%, #16213e 30%, #1a1a2e 50%, #0f0f1a 80%, #0a0a12 100%)",isDark:true,
+    elements:[
+      {text:"Motorised\nProjection Screen",x:"40%",y:"12%",color:"#63B3ED"},
+      {text:"Programmable\nEvent Lighting",x:"12%",y:"12%",color:"#F6E05E"},
+      {text:"Distributed\nPA System",x:"72%",y:"12%",color:"#FC8181"},
+      {text:"Retractable\nPartition Wall",x:"12%",y:"50%",color:"#B794F4"},
+      {text:"150-200 Pax\n(Theatre Style)",x:"42%",y:"50%",color:"#9AE6B4"},
+      {text:"Catering\nKitchen",x:"72%",y:"50%",color:"#FBD38D"},
+    ],
+    desc:"A standard office floor is converted into a dedicated function space with full AV capability. The retractable partition wall splits the hall into two independent rooms for versatile event configurations.",
+    specs:["Laser Projector (6000 lumens)","Wireless Mic PA System","LED Event Lighting","Acoustic Partition (STC 50+)","Dedicated 1 Gbps Wi-Fi","Catering Kitchen (30 sqm)"],
+  },
+  {id:"rooftop",title:"Rooftop — Solar & Green Terrace",subtitle:"Sustainability features and tenant amenity space",
+    gradient:"linear-gradient(180deg, #4299E1 0%, #63B3ED 20%, #90CDF4 35%, #BEE3F8 50%, #C6F6D5 60%, #9AE6B4 75%, #68D391 100%)",isDark:false,
+    elements:[
+      {text:"PV Solar Array\n~50 kWp",x:"15%",y:"35%",color:"#744210"},
+      {text:"Green Terrace\nfor Tenants",x:"65%",y:"35%",color:"#22543D"},
+      {text:"Modular\nPlanter Beds",x:"65%",y:"62%",color:"#276749"},
+      {text:"Energy\nSub-Metering",x:"15%",y:"62%",color:"#744210"},
+    ],
+    desc:"The rooftop is optimised for sustainability with a PV solar array (~50 kWp). An optional green terrace provides tenants with outdoor amenity space, supporting the Green Mark Gold⁺ certification goal.",
+    specs:["Monocrystalline PV (~50 kWp)","Energy Sub-Metering","Self-Watering Planter Beds","Composite Timber Decking","Shade Sail Structures","Outdoor Furniture & Lighting"],
+  },
+];
+
+const TABS = [
+  {id:"plans",label:"Floor Plans",icon:"📐"},
+  {id:"renders",label:"Concept Renders",icon:"🏗️"},
+  {id:"data",label:"Building Data",icon:"📊"},
+];
+
+/* ═══════════════ COMPONENTS ═══════════════ */
+
+function FloorPlan({zones, isPost}) {
+  const [hovered, setHovered] = useState(null);
+  return (
+    <div style={{
+      position:"relative",width:"100%",paddingBottom:"58%",
+      background:isPost?"linear-gradient(135deg,#f0fff4,#e6fffa,#ebf8ff)":"linear-gradient(135deg,#fafaf9,#f5f0eb,#f7f2ed)",
+      borderRadius:14,overflow:"hidden",border:"2px solid "+(isPost?"#38A16930":"#A0AEC030"),
+    }}>
+      {[20,40,60,80].map(p=><div key={p} style={{position:"absolute",left:p+"%",top:0,bottom:0,width:1,background:isPost?"#C6F6D518":"#CBD5E018"}}/>)}
+      {zones.map((z,i)=>(
+        <div key={i} onMouseEnter={()=>setHovered(i)} onMouseLeave={()=>setHovered(null)}
+          style={{
+            position:"absolute",left:z.x+"%",top:z.y+"%",width:z.w+"%",height:z.h+"%",
+            background:hovered===i?z.color+"DD":z.color+"99",borderRadius:10,
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+            cursor:"pointer",transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",
+            transform:hovered===i?"scale(1.03)":"scale(1)",zIndex:hovered===i?10:1,
+            boxShadow:hovered===i?"0 8px 32px rgba(0,0,0,0.18)":"0 2px 8px rgba(0,0,0,0.06)",
+            border:"1.5px solid "+(hovered===i?"#2D374888":"#2D374818"),padding:4,
+          }}>
+          {z.icon&&<span style={{fontSize:z.w>15?18:13,marginBottom:2}}>{z.icon}</span>}
+          <span style={{fontSize:z.w>20?10.5:8.5,fontWeight:600,color:"#1A202C",textAlign:"center",lineHeight:1.3,whiteSpace:"pre-line",textShadow:"0 1px 2px rgba(255,255,255,0.6)"}}>{z.label}</span>
+        </div>
+      ))}
+      <div style={{position:"absolute",bottom:6,left:8,fontSize:8,color:"#A0AEC0",fontFamily:"'Space Mono',monospace",letterSpacing:"0.06em"}}>NOT TO SCALE — SCHEMATIC ONLY</div>
+    </div>
+  );
+}
+
+function BuildingElevation({selectedFloor, onSelect}) {
+  const rev=[...FLOORS].reverse();
+  return (
+    <div style={{width:105,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center"}}>
+      <div style={{fontSize:9,color:"#718096",fontFamily:"'Space Mono',monospace",letterSpacing:"0.1em",marginBottom:8}}>SELECT FLOOR</div>
+      <div style={{width:"100%",background:"rgba(0,0,0,0.2)",borderRadius:14,padding:"8px 6px",border:"1px solid rgba(255,255,255,0.05)"}}>
+        {rev.map((f,idx)=>{
+          const ri=FLOORS.length-1-idx;
+          const act=selectedFloor===ri;
+          const h=f.id==="B1"?36:f.id==="GF"||f.id==="L5"?48:36;
+          return (
+            <div key={f.id} onClick={()=>onSelect(ri)} style={{
+              height:h,margin:"2px 0",
+              background:act?`linear-gradient(135deg,${f.color}EE,${f.color}CC)`:`linear-gradient(135deg,${f.color}55,${f.color}33)`,
+              borderRadius:idx===0?"10px 10px 3px 3px":idx===rev.length-1?"3px 3px 10px 10px":3,
+              display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+              transition:"all 0.3s ease",transform:act?"scaleX(1.06)":"scaleX(1)",
+              boxShadow:act?`0 4px 18px ${f.color}55`:"none",
+              border:act?"2px solid rgba(255,255,255,0.35)":"1px solid rgba(255,255,255,0.08)",
+              position:"relative",overflow:"hidden",
+            }}>
+              {act&&<div style={{position:"absolute",inset:0,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent)",animation:"shimmer 2.5s infinite"}}/>}
+              <span style={{fontSize:10,fontWeight:700,color:"#fff",letterSpacing:"0.05em",textShadow:"0 1px 3px rgba(0,0,0,0.3)",position:"relative",zIndex:1}}>{f.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{width:"120%",height:3,background:"linear-gradient(90deg,transparent,#4A5568,transparent)",marginTop:6,borderRadius:2}}/>
+      <div style={{fontSize:7,color:"#4A5568",fontFamily:"'Space Mono',monospace",marginTop:3}}>GROUND LEVEL</div>
+    </div>
+  );
+}
+
+function RenderCard({render, index}) {
+  const [expanded, setExpanded] = useState(false);
+  const dk=render.isDark;
+  const tc=dk?"#E2E8F0":"#1A202C";
+  const sc=dk?"#A0AEC0":"#4A5568";
+  const pb=dk?"rgba(255,255,255,0.1)":"rgba(0,0,0,0.06)";
+  const pbb=dk?"rgba(255,255,255,0.15)":"rgba(0,0,0,0.08)";
+  return (
+    <div style={{borderRadius:18,overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)",boxShadow:"0 8px 40px rgba(0,0,0,0.3)",marginBottom:24,animation:`fadeSlideUp 0.5s ease-out ${index*0.1}s both`}}>
+      <div style={{background:render.gradient,position:"relative",padding:"32px 24px 24px",minHeight:260,display:"flex",flexDirection:"column"}}>
+        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0.05,pointerEvents:"none"}}>
+          <defs><pattern id={"g-"+render.id} width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke={dk?"#fff":"#000"} strokeWidth="0.5"/></pattern></defs>
+          <rect width="100%" height="100%" fill={"url(#g-"+render.id+")"}/>
+        </svg>
+        <div style={{position:"relative",zIndex:2,marginBottom:16}}>
+          <h3 style={{margin:"0 0 4px",fontSize:19,fontWeight:700,color:tc}}>{render.title}</h3>
+          <p style={{margin:0,fontSize:11.5,color:sc,fontStyle:"italic"}}>{render.subtitle}</p>
+        </div>
+        <div style={{position:"relative",flex:1,minHeight:120,zIndex:2}}>
+          {render.elements.map((el,i)=>(
+            <div key={i} style={{
+              position:"absolute",left:el.x,top:el.y,
+              background:dk?"rgba(0,0,0,0.45)":"rgba(255,255,255,0.75)",
+              backdropFilter:"blur(8px)",borderRadius:10,padding:"7px 11px",
+              border:`1.5px solid ${el.color}66`,boxShadow:`0 2px 12px ${el.color}22`,maxWidth:140,
+            }}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:el.color,marginBottom:4,boxShadow:`0 0 8px ${el.color}88`}}/>
+              <span style={{fontSize:10,fontWeight:600,color:tc,whiteSpace:"pre-line",lineHeight:1.35}}>{el.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{background:dk?"rgba(15,15,30,0.95)":"rgba(255,255,255,0.95)",padding:"16px 22px",borderTop:`1px solid ${dk?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}`}}>
+        <p style={{margin:"0 0 12px",fontSize:12.5,lineHeight:1.7,color:sc}}>{render.desc}</p>
+        <button onClick={()=>setExpanded(!expanded)} style={{background:pb,border:`1px solid ${pbb}`,borderRadius:8,padding:"6px 14px",cursor:"pointer",fontSize:11,fontWeight:600,color:sc,fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s"}}>
+          {expanded?"Hide":"Show"} Specs {expanded?"▲":"▼"}
+        </button>
+        {expanded&&<div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:6}}>
+          {render.specs.map((s,i)=><span key={i} style={{padding:"5px 11px",background:pb,borderRadius:7,fontSize:10.5,color:sc,border:`1px solid ${pbb}`,fontWeight:500}}>{s}</span>)}
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function DataTable() {
+  const rows = [
+    ["Building Type","Commercial Office"],["TOP Year","2011"],["Building Age","~14 years"],
+    ["Storeys","10 + 1 Basement"],["Typical Floor Plate","~1,100 sqm"],["Gross Floor Area","~11,800 sqm"],
+    ["Net Lettable Area","~8,800 sqm"],["Car Park","~70 lots"],["Structure","RC Frame"],
+    ["Pre-AEI Rating","None"],["Post-AEI Target","Green Mark Gold⁺"],
+    ["Owner","HarbourView Commercial Pte Ltd"],["Lead Consultant","Studio XZ Consultants"],
+    ["D&B Contractor","Vertex Integrated Builders"],
+  ];
+  const before = [
+    {cat:"Lobby",val:"Dated café, defunct function room, manual reception"},
+    {cat:"Offices",val:"Fixed partitions, cubicles, poor daylight, outdated M&E"},
+    {cat:"M&E",val:"Central AHUs, old lighting, basic controls, uneven cooling"},
+    {cat:"Façade",val:"Original glazing, limited shading, high solar heat gain"},
+    {cat:"Sustainability",val:"No Green Mark, minimal features"},
+    {cat:"Car Park",val:"Basic wayfinding, no EV, poor lighting"},
+  ];
+  const after = [
+    {cat:"Lobby",val:"AI concierge, digital reception, tenant lounge, meeting rooms"},
+    {cat:"Offices",val:"ABW zones, hot-desking, collaboration hubs, phone booths"},
+    {cat:"M&E",val:"High-efficiency HVAC, smart LED, BMS, VAV zone control"},
+    {cat:"Façade",val:"Low-E glazing, shading fins, insulated panels"},
+    {cat:"Sustainability",val:"Solar PV, EV charging, sub-metering, water-saving fittings"},
+    {cat:"Car Park",val:"LED lighting, digital signage, EV charging bays"},
+  ];
+  const cs={background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"8px 14px"};
+  return (
+    <div style={{maxWidth:860,margin:"0 auto"}}>
+      <h2 style={{fontSize:18,fontWeight:700,marginBottom:18,textAlign:"center"}}>Building Data Summary</h2>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8,marginBottom:28}}>
+        {rows.map((r,i)=><div key={i} style={cs}><div style={{fontSize:9,color:"#718096",fontFamily:"'Space Mono',monospace",letterSpacing:"0.06em",marginBottom:2}}>{r[0]}</div><div style={{fontSize:13,fontWeight:600,color:"#E2E8F0"}}>{r[1]}</div></div>)}
+      </div>
+      <h3 style={{fontSize:15,fontWeight:700,marginBottom:14,color:"#FC8181"}}>Before AEI — Key Issues</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:28}}>
+        {before.map((b,i)=><div key={i} style={{...cs,borderLeft:"3px solid #E53E3E44"}}><div style={{fontSize:10,fontWeight:700,color:"#FC8181",marginBottom:3}}>{b.cat}</div><div style={{fontSize:12,color:"#A0AEC0"}}>{b.val}</div></div>)}
+      </div>
+      <h3 style={{fontSize:15,fontWeight:700,marginBottom:14,color:"#68D391"}}>After AEI — Upgrades</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {after.map((a,i)=><div key={i} style={{...cs,borderLeft:"3px solid #38A16944"}}><div style={{fontSize:10,fontWeight:700,color:"#68D391",marginBottom:3}}>{a.cat}</div><div style={{fontSize:12,color:"#A0AEC0"}}>{a.val}</div></div>)}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════ MAIN APP ═══════════════ */
+
+function App() {
+  const [tab,setTab] = useState("plans");
+  const [sf,setSf] = useState(1);
+  const [post,setPost] = useState(true);
+  const [anim,setAnim] = useState(false);
+  const floor=FLOORS[sf];
+  const data=post?floor.postAEI:floor.preAEI;
+
+  useEffect(()=>{setAnim(true);const t=setTimeout(()=>setAnim(false),400);return ()=>clearTimeout(t);},[sf,post]);
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0c1220 0%,#162032 40%,#1a2744 70%,#0f1a2e 100%)",fontFamily:"'DM Sans',sans-serif",color:"#E2E8F0",padding:"24px 16px"}}>
+      {/* Header */}
+      <div style={{textAlign:"center",marginBottom:22,animation:"fadeSlideUp 0.5s ease-out"}}>
+        <div style={{display:"inline-block",padding:"3px 14px",background:"linear-gradient(135deg,#2B6CB033,#805AD533)",borderRadius:18,fontSize:9,fontFamily:"'Space Mono',monospace",letterSpacing:"0.15em",color:"#A0C4E8",marginBottom:8,border:"1px solid #2B6CB022"}}>ASSET ENHANCEMENT INITIATIVE</div>
+        <h1 style={{fontSize:28,fontWeight:700,margin:"0 0 3px",fontFamily:"'Playfair Display',serif",background:"linear-gradient(135deg,#fff 30%,#90CDF4)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-0.02em"}}>HarbourView One</h1>
+        <p style={{fontSize:11,color:"#718096",margin:0,fontFamily:"'Space Mono',monospace"}}>88A Pasir Panjang Road, Singapore — 10-Storey Commercial Office</p>
+      </div>
+
+      {/* Stats */}
+      <div style={{display:"flex",gap:7,justifyContent:"center",flexWrap:"wrap",marginBottom:20}}>
+        {[{l:"GFA",v:"~11,800 sqm"},{l:"NLA",v:"~8,800 sqm"},{l:"FLOORS",v:"10 + B1"},{l:"TOP",v:"2011"},{l:"TARGET",v:"GM Gold⁺"}].map((s,i)=>
+          <div key={i} style={{padding:"6px 13px",background:"rgba(255,255,255,0.04)",borderRadius:9,border:"1px solid rgba(255,255,255,0.06)",textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#718096",fontFamily:"'Space Mono',monospace",letterSpacing:"0.08em",marginBottom:1}}>{s.l}</div>
+            <div style={{fontSize:11,fontWeight:600}}>{s.v}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",justifyContent:"center",gap:4,marginBottom:24}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            padding:"8px 22px",borderRadius:10,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,fontFamily:"'DM Sans',sans-serif",
+            transition:"all 0.3s",
+            background:tab===t.id?"linear-gradient(135deg,#2B6CB0CC,#805AD5AA)":"rgba(255,255,255,0.05)",
+            color:tab===t.id?"#fff":"#718096",
+            boxShadow:tab===t.id?"0 4px 16px rgba(43,108,176,0.3)":"none",
+            border:tab===t.id?"1px solid rgba(255,255,255,0.15)":"1px solid rgba(255,255,255,0.06)",
+          }}>{t.icon} {t.label}</button>
+        ))}
+      </div>
+
+      {/* ──── FLOOR PLANS ──── */}
+      {tab==="plans"&&(
+        <div style={{display:"flex",gap:18,maxWidth:1100,margin:"0 auto",alignItems:"flex-start"}}>
+          <BuildingElevation selectedFloor={sf} onSelect={setSf}/>
+          <div style={{flex:1,minWidth:0,animation:anim?"fadeSlideUp 0.35s ease-out":"none"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${floor.color}CC,${floor.color}88)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",fontFamily:"'Space Mono',monospace",boxShadow:`0 4px 14px ${floor.color}44`}}>{floor.label}</div>
+                <h2 style={{margin:0,fontSize:17,fontWeight:700}}>{floor.name}</h2>
+              </div>
+              <div style={{display:"flex",background:"rgba(0,0,0,0.3)",borderRadius:10,padding:3,border:"1px solid rgba(255,255,255,0.06)"}}>
+                <button onClick={()=>setPost(false)} style={{padding:"6px 15px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'DM Sans',sans-serif",transition:"all 0.3s",background:!post?"linear-gradient(135deg,#E53E3E99,#C5303088)":"transparent",color:!post?"#fff":"#718096"}}>Before AEI</button>
+                <button onClick={()=>setPost(true)} style={{padding:"6px 15px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:"'DM Sans',sans-serif",transition:"all 0.3s",background:post?"linear-gradient(135deg,#38A16999,#2F855A88)":"transparent",color:post?"#fff":"#718096"}}>After AEI</button>
+              </div>
+            </div>
+            <div style={{padding:"10px 14px",background:post?"linear-gradient(135deg,rgba(56,161,105,0.08),rgba(49,130,206,0.05))":"linear-gradient(135deg,rgba(160,174,192,0.08),rgba(113,128,150,0.05))",borderRadius:11,marginBottom:14,border:`1px solid ${post?"rgba(56,161,105,0.15)":"rgba(160,174,192,0.1)"}`,fontSize:12.5,lineHeight:1.65,color:"#CBD5E0"}}>{data.desc}</div>
+            <FloorPlan zones={data.zones} isPost={post}/>
+            <div style={{marginTop:14}}>
+              <div style={{fontSize:9,color:"#718096",fontFamily:"'Space Mono',monospace",letterSpacing:"0.1em",marginBottom:7}}>KEY FEATURES</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {data.features.map((f,i)=><span key={i} style={{padding:"4px 11px",background:post?"rgba(56,161,105,0.12)":"rgba(160,174,192,0.1)",borderRadius:7,fontSize:10.5,color:post?"#9AE6B4":"#A0AEC0",border:`1px solid ${post?"rgba(56,161,105,0.2)":"rgba(160,174,192,0.15)"}`,fontWeight:500}}>{f}</span>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ──── RENDERS ──── */}
+      {tab==="renders"&&(
+        <div style={{maxWidth:800,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:22}}>
+            <h2 style={{margin:"0 0 4px",fontSize:18,fontWeight:700}}>Post-AEI Concept Visualisations</h2>
+            <p style={{margin:0,fontSize:12,color:"#718096"}}>Annotated concept renders showing key design features for each major space</p>
+          </div>
+          {RENDERS.map((r,i)=><RenderCard key={r.id} render={r} index={i}/>)}
+        </div>
+      )}
+
+      {/* ──── DATA ──── */}
+      {tab==="data"&&<DataTable/>}
+
+      {/* Footer */}
+      <div style={{textAlign:"center",marginTop:32,fontSize:8,color:"#4A5568",fontFamily:"'Space Mono',monospace",letterSpacing:"0.08em"}}>
+        HARBOURVIEW ONE — AEI INTERACTIVE VISUALISER — STUDIO XZ CONSULTANTS × VERTEX INTEGRATED BUILDERS
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
+</body>
+</html>
